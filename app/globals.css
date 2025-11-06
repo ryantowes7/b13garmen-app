@@ -1,115 +1,71 @@
-/* app/globals.css
-   Tailwind directives + custom CSS variables + base styles
-*/
-
-/* --- Tailwind directives (harus ada jika memakai Tailwind) --- */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* --- Custom CSS Variables (theme tokens) --- */
-:root{
-  /* Primary palette */
-  --brand-50: #f0f9ff;
-  --brand-100: #e0f2fe;
-  --brand-200: #bae6fd;
-  --brand-300: #7dd3fc;
-  --brand-400: #38bdf8;
-  --brand-500: #0ea5e9; /* main */
-  --brand-600: #0284c7;
-  --brand-700: #0369a1;
-  --brand-800: #075985;
-  --brand-900: #0c4a6e;
-
-  /* Neutral & background */
-  --bg: #f8fafc;
-  --surface: #ffffff;
-  --muted: #6b7280;
-  --border: #e6e9ee;
-  --shadow: rgba(15, 23, 42, 0.06);
-
-  /* Semantic */
-  --success: #10b981;
-  --danger: #ef4444;
-  --warning: #f59e0b;
-
-  /* Typography */
-  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
-  --radius-sm: 6px;
-  --radius-md: 10px;
-  --radius-lg: 14px;
-}
-
-/* --- Base reset / sensible defaults --- */
-*,
-*::before,
-*::after {
-  box-sizing: border-box;
-}
-
-html, body, #__next {
-  height: 100%;
-}
-
-body {
-  font-family: var(--font-sans);
-  background-color: var(--bg);
-  color: #0f172a; /* slate-900 */
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  line-height: 1.45;
-}
-
-/* Links */
-a {
-  color: var(--brand-600);
-  text-decoration: none;
-}
-a:hover { text-decoration: underline; }
-
-/* Containers & helpers */
-.container {
-  max-width: 1100px;
-  margin-left: auto;
-  margin-right: auto;
-  padding-left: 1rem;
-  padding-right: 1rem;
-}
-
-/* Card defaults (align with components/ui/card) */
-.card {
-  background: var(--surface);
-  border-radius: var(--radius-md);
-  border: 1px solid var(--border);
-  box-shadow: 0 6px 18px var(--shadow);
-}
-
-/* Buttons accessibility focus ring */
-button:focus,
-input:focus,
-select:focus,
-textarea:focus {
-  outline: none;
-  box-shadow: 0 0 0 4px rgba(14,165,233,0.12); /* subtle sky ring */
-  border-radius: calc(var(--radius-sm));
-}
-
-/* Small utilities */
-.text-muted { color: var(--muted); }
-.hidden-visually { position: absolute !important; height: 1px; width: 1px; overflow: hidden; clip: rect(1px,1px,1px,1px); white-space: nowrap; }
-
-/* Responsive tweaks */
-@media (min-width: 768px) {
-  .container { max-width: 1100px; }
-}
-
-/* Optional: dark mode support (if you want to enable later) */
-@media (prefers-color-scheme: dark) {
+@layer base {
   :root {
-    --bg: #081226;
-    --surface: #071128;
-    --muted: #9aa4b2;
-    --border: rgba(255,255,255,0.06);
+    --background: 222 47% 11%;
+    --foreground: 210 40% 98%;
+    --card: 222 47% 14%;
+    --card-foreground: 210 40% 98%;
+    --popover: 222 47% 14%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 217 91% 60%;
+    --primary-foreground: 222 47% 11%;
+    --secondary: 217 33% 17%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 217 33% 17%;
+    --muted-foreground: 215 20% 65%;
+    --accent: 217 33% 17%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 217 33% 24%;
+    --input: 217 33% 24%;
+    --ring: 217 91% 60%;
+    --radius: 0.5rem;
+    --chart-1: 217 91% 60%;
+    --chart-2: 173 58% 39%;
+    --chart-3: 197 37% 24%;
+    --chart-4: 43 74% 66%;
+    --chart-5: 27 87% 67%;
   }
-  body { color: #e6eef6; }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto",
+      "Oxygen", "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans",
+      "Helvetica Neue", sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
+
+/* Professional styling for B13 Garment */
+.container {
+  @apply mx-auto px-4 max-w-7xl;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: hsl(var(--background));
+}
+
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--muted));
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--muted-foreground));
 }
