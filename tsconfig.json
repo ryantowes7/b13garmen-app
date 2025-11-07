@@ -24,6 +24,6 @@
       }
     ]
   },
-  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
+  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts", "app/dashboard/page.js", "lib/auth.js", "app/api/auth/route.ts", "lib/auth.js", "app/login/page.js", "app/login/page.js", "app/dashboard/page.js", "app/layout.js", "app/page.js", "hooks/use-mobile.jsx", "lib/utils.js", "lib/supabase.js"],
   "exclude": ["node_modules"]
 }
