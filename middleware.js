@@ -1,44 +1,44 @@
 import { NextResponse } from 'next/server'
 
-export async function middleware(req) {
-  const res = NextResponse.next()
-  
-  // Cek beberapa nama cookie yang mungkin dipakai Supabase
-  const cookieNamesToCheck = [
-    '__Host-sb-access-token',
-    'sb-access-token',
-    'sb-refresh-token',
-    'sb-gigszmpljitrksgsinrm-auth-token', // tetap ada sebagai fallback jika memang dipakai
-  ]
+/**
+ * Mode B Middleware — Simple, Stable, Cookie-Based Protection
+ *
+ * Fungsi:
+ * - Tidak memakai Supabase client di Edge (menghindari RSC/ERR_ABORTED)
+ * - Tidak memanggil API verify (itu Mode C)
+ * - Cukup mendeteksi keberadaan cookie Supabase:
+ *      - sb-access-token
+ *      - sb-refresh-token
+ *      - sb-session
+ *
+ * Jika TIDAK ada cookie session → redirect ke halaman login (/)
+ *
+ * Catatan:
+ * - Cookie ini ditulis oleh endpoint /api/auth (POST) setelah login selesai.
+ * - Cukup aman untuk aplikasi internal.
+ */
 
-  let hasSession = false
+export function middleware(req) {
+  const pathname = req.nextUrl.pathname
 
-  // Cek daftar nama cookie secara eksplisit
-  for (const name of cookieNamesToCheck) {
-    if (req.cookies.get(name)?.value) {
-      hasSession = true
-      break
+  // Lindungi rute dashboard
+  if (pathname.startsWith('/dashboard')) {
+    const cookie = req.headers.get('cookie') || ''
+
+    const hasSession =
+      cookie.includes('sb-access-token') ||
+      cookie.includes('sb-refresh-token') ||
+      cookie.includes('sb-session') ||
+      cookie.includes('supabase-auth-token') ||
+      cookie.includes('sb:')
+
+    if (!hasSession) {
+      // Tidak ada session → redirect ke / (login)
+      return NextResponse.redirect(new URL('/', req.url))
     }
   }
 
-  // Fallback: cek apakah ada cookie yang berawalan sb- atau __Host-sb-
-  if (!hasSession) {
-    const cookieHeader = req.headers.get('cookie') || ''
-    if (
-      cookieHeader
-        .split(';')
-        .some((c) => c.trim().startsWith('sb-') || c.trim().startsWith('__Host-sb-'))
-    ) {
-      hasSession = true
-    }
-  }
-
-  // Proteksi route /dashboard
-  if (!hasSession && req.nextUrl.pathname.startsWith('/dashboard')) {
-    return NextResponse.redirect(new URL('/', req.url))
-  }
-
-  return res
+  return NextResponse.next()
 }
 
 export const config = {

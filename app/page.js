@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { supabase, signInWithPassword } from '@/lib/supabase'
+import { supabase } from '@/lib/supabase'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -24,8 +24,8 @@ export default function LoginPage() {
 
   const checkUser = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (user) {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (session) {
         router.push('/dashboard')
       }
     } catch (error) {
@@ -48,8 +48,22 @@ export default function LoginPage() {
 
       if (error) throw error
 
-      // Success - redirect to dashboard
-      router.push('/dashboard')
+      if (data.session) {
+        try {
+          // Kirim session ke server agar disimpan sebagai HttpOnly cookie
+          await fetch('/api/auth', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data.session)
+          })
+        } catch (err) {
+          console.error("Failed to persist session:", err)
+        }
+
+        await new Promise((resolve) => setTimeout(resolve, 500))
+        router.push('/dashboard')
+        router.refresh()
+      }
     } catch (err) {
       console.error('Login error:', err)
       setError(err.message || 'Gagal login. Periksa kembali email dan password Anda.')

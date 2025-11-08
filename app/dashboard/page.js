@@ -13,49 +13,43 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const checkUser = async () => {
-      try {
-        // Cek session lebih stabil daripada getUser langsung
-        const { data: sessionData, error } = await supabase.auth.getSession()
-        if (error) throw error
-
-        let session = sessionData?.session
-        let currentUser = session?.user
-
-        // Jika session belum ada, coba polling singkat (karena penulisan cookie mungkin delay)
-        if (!session || !currentUser) {
-          let tries = 0
-          while (tries < 8 && (!session || !currentUser)) {
-            await new Promise((r) => setTimeout(r, 300))
-            const { data: s2 } = await supabase.auth.getSession()
-            session = s2?.session
-            currentUser = session?.user
-            tries++
-          }
-        }
-
-        if (!session || !currentUser) {
-          // Tidak ada session: redirect ke login
-          router.push('/')
-          return
-        }
-
-        setUser(currentUser)
-      } catch (error) {
-        console.error('Error checking user:', error)
-        router.push('/')
-      } finally {
-        setLoading(false)
-      }
-    }
-
     checkUser()
-  }, [router])
+    
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!session) {
+        router.push('/')
+      } else {
+        setUser(session.user)
+      }
+    })
+
+    return () => subscription.unsubscribe()
+  }, [])
+
+  const checkUser = async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      
+      if (!session) {
+        router.push('/')
+        return
+      }
+
+      setUser(session.user)
+    } catch (error) {
+      console.error('Error checking user:', error)
+      router.push('/')
+    } finally {
+      setLoading(false)
+    }
+  }
 
   const handleLogout = async () => {
     try {
       await supabase.auth.signOut()
       router.push('/')
+      router.refresh()
     } catch (error) {
       console.error('Error logging out:', error)
     }

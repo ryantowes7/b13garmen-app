@@ -1,11 +1,15 @@
+-- ==============================================
 -- B13 Garmen Database Migration for Supabase
--- Run this in Supabase SQL Editor
+-- Jalankan langsung di Supabase SQL Editor
+-- ==============================================
 
--- Enable UUID extension
+-- Aktifkan ekstensi UUID
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
--- Table: users (for authentication)
-CREATE TABLE IF NOT EXISTS users (
+-- ==============================================
+-- Table: users (untuk autentikasi)
+-- ==============================================
+CREATE TABLE IF NOT EXISTS public.users (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     username TEXT UNIQUE NOT NULL,
     password_hash TEXT NOT NULL,
@@ -15,8 +19,10 @@ CREATE TABLE IF NOT EXISTS users (
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- ==============================================
 -- Table: bahan (kain/fabric)
-CREATE TABLE IF NOT EXISTS bahan (
+-- ==============================================
+CREATE TABLE IF NOT EXISTS public.bahan (
     id TEXT PRIMARY KEY,
     nama_toko TEXT NOT NULL,
     jenis TEXT NOT NULL,
@@ -26,8 +32,10 @@ CREATE TABLE IF NOT EXISTS bahan (
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- ==============================================
 -- Table: produk
-CREATE TABLE IF NOT EXISTS produk (
+-- ==============================================
+CREATE TABLE IF NOT EXISTS public.produk (
     id TEXT PRIMARY KEY,
     produk TEXT NOT NULL,
     jenis TEXT NOT NULL,
@@ -37,8 +45,10 @@ CREATE TABLE IF NOT EXISTS produk (
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- ==============================================
 -- Table: percetakan
-CREATE TABLE IF NOT EXISTS percetakan (
+-- ==============================================
+CREATE TABLE IF NOT EXISTS public.percetakan (
     id TEXT PRIMARY KEY,
     jenis TEXT NOT NULL,
     model TEXT NOT NULL,
@@ -48,8 +58,10 @@ CREATE TABLE IF NOT EXISTS percetakan (
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- ==============================================
 -- Table: jasa
-CREATE TABLE IF NOT EXISTS jasa (
+-- ==============================================
+CREATE TABLE IF NOT EXISTS public.jasa (
     id TEXT PRIMARY KEY,
     jasa TEXT NOT NULL,
     jenis TEXT NOT NULL,
@@ -59,8 +71,10 @@ CREATE TABLE IF NOT EXISTS jasa (
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- ==============================================
 -- Table: pilihan (dropdown options)
-CREATE TABLE IF NOT EXISTS pilihan (
+-- ==============================================
+CREATE TABLE IF NOT EXISTS public.pilihan (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     kategori TEXT NOT NULL,
     nilai TEXT NOT NULL,
@@ -68,8 +82,10 @@ CREATE TABLE IF NOT EXISTS pilihan (
     UNIQUE(kategori, nilai)
 );
 
+-- ==============================================
 -- Table: orders
-CREATE TABLE IF NOT EXISTS orders (
+-- ==============================================
+CREATE TABLE IF NOT EXISTS public.orders (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     no_orderan TEXT UNIQUE NOT NULL,
     nama TEXT NOT NULL,
@@ -96,10 +112,12 @@ CREATE TABLE IF NOT EXISTS orders (
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- ==============================================
 -- Table: biaya_produksi
-CREATE TABLE IF NOT EXISTS biaya_produksi (
+-- ==============================================
+CREATE TABLE IF NOT EXISTS public.biaya_produksi (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    order_id UUID NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+    order_id UUID NOT NULL REFERENCES public.orders(id) ON DELETE CASCADE,
     kategori TEXT NOT NULL,
     jenis TEXT NOT NULL,
     harga NUMERIC(10,2) NOT NULL,
@@ -108,39 +126,54 @@ CREATE TABLE IF NOT EXISTS biaya_produksi (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Create indexes for better performance
-CREATE INDEX IF NOT EXISTS idx_orders_no_orderan ON orders(no_orderan);
-CREATE INDEX IF NOT EXISTS idx_orders_tanggal_pesan ON orders(tanggal_pesan);
-CREATE INDEX IF NOT EXISTS idx_orders_deadline ON orders(deadline);
-CREATE INDEX IF NOT EXISTS idx_biaya_produksi_order_id ON biaya_produksi(order_id);
-CREATE INDEX IF NOT EXISTS idx_pilihan_kategori ON pilihan(kategori);
+-- ==============================================
+-- Indexes
+-- ==============================================
+CREATE INDEX IF NOT EXISTS idx_orders_no_orderan ON public.orders(no_orderan);
+CREATE INDEX IF NOT EXISTS idx_orders_tanggal_pesan ON public.orders(tanggal_pesan);
+CREATE INDEX IF NOT EXISTS idx_orders_deadline ON public.orders(deadline);
+CREATE INDEX IF NOT EXISTS idx_biaya_produksi_order_id ON public.biaya_produksi(order_id);
+CREATE INDEX IF NOT EXISTS idx_pilihan_kategori ON public.pilihan(kategori);
 
--- Create default admin user (username: admin, password: admin123)
--- Password hash for 'admin123' using bcrypt
-INSERT INTO users (username, password_hash, nama_lengkap, email)
-VALUES ('admin', '$2a$10$xQZJ9qZ9XQZ9qZ9XQZ9qZO5J5J5J5J5J5J5J5J5J5J5J5J5J5J5J5', 'Administrator', 'admin@b13garmen.com')
+-- ==============================================
+-- Default admin user
+-- ==============================================
+INSERT INTO public.users (username, password_hash, nama_lengkap, email)
+VALUES (
+    'admin',
+    '$2a$10$xQZJ9qZ9XQZ9qZ9XQZ9qZO5J5J5J5J5J5J5J5J5J5J5J5J5J5J5J5',
+    'Administrator',
+    'admin@b13garmen.com'
+)
 ON CONFLICT (username) DO NOTHING;
 
--- Enable Row Level Security (RLS) - opsional, bisa diaktifkan nanti
--- ALTER TABLE users ENABLE ROW LEVEL SECURITY;
--- ALTER TABLE orders ENABLE ROW LEVEL SECURITY;
--- ALTER TABLE bahan ENABLE ROW LEVEL SECURITY;
--- ALTER TABLE produk ENABLE ROW LEVEL SECURITY;
--- ALTER TABLE percetakan ENABLE ROW LEVEL SECURITY;
--- ALTER TABLE jasa ENABLE ROW LEVEL SECURITY;
--- ALTER TABLE pilihan ENABLE ROW LEVEL SECURITY;
--- ALTER TABLE biaya_produksi ENABLE ROW LEVEL SECURITY;
+-- ==============================================
+-- Row Level Security (opsional)
+-- ==============================================
+-- ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
+-- ALTER TABLE public.orders ENABLE ROW LEVEL SECURITY;
+-- ALTER TABLE public.bahan ENABLE ROW LEVEL SECURITY;
+-- ALTER TABLE public.produk ENABLE ROW LEVEL SECURITY;
+-- ALTER TABLE public.percetakan ENABLE ROW LEVEL SECURITY;
+-- ALTER TABLE public.jasa ENABLE ROW LEVEL SECURITY;
+-- ALTER TABLE public.pilihan ENABLE ROW LEVEL SECURITY;
+-- ALTER TABLE public.biaya_produksi ENABLE ROW LEVEL SECURITY;
 
--- Create Storage Bucket untuk gambar mockup
--- Run this separately in Supabase Dashboard > Storage
--- Bucket name: 'mockup-images'
+-- ==============================================
+-- Catatan untuk Storage Bucket
+-- ==============================================
+-- Buat bucket di Supabase Dashboard > Storage
+-- Nama bucket: mockup-images
 -- Public bucket: true (agar bisa diakses tanpa auth)
 
-COMMENT ON TABLE users IS 'User accounts for authentication';
-COMMENT ON TABLE bahan IS 'Fabric/material catalog';
-COMMENT ON TABLE produk IS 'Product catalog';
-COMMENT ON TABLE percetakan IS 'Printing services catalog';
-COMMENT ON TABLE jasa IS 'Service catalog';
-COMMENT ON TABLE pilihan IS 'Dropdown options for forms';
-COMMENT ON TABLE orders IS 'Customer orders';
-COMMENT ON TABLE biaya_produksi IS 'Production costs breakdown per order';
+-- ==============================================
+-- Deskripsi tabel
+-- ==============================================
+COMMENT ON TABLE public.users IS 'User accounts for authentication';
+COMMENT ON TABLE public.bahan IS 'Fabric/material catalog';
+COMMENT ON TABLE public.produk IS 'Product catalog';
+COMMENT ON TABLE public.percetakan IS 'Printing services catalog';
+COMMENT ON TABLE public.jasa IS 'Service catalog';
+COMMENT ON TABLE public.pilihan IS 'Dropdown options for forms';
+COMMENT ON TABLE public.orders IS 'Customer orders';
+COMMENT ON TABLE public.biaya_produksi IS 'Production costs breakdown per order';
