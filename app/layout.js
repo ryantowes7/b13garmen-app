@@ -1,29 +1,29 @@
 import { Inter } from 'next/font/google';
 import './globals.css';
-import { Toaster } from '@/components/ui/toaster';
+import Sidebar from '@/components/Sidebar'; // Impor Sidebar
 
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata = {
-  title: 'B13 Garment & Advertising',
-  description: 'Sistem Manajemen Order B13 Garment & Advertising',
+  title: 'B13 Garment App',
+  description: 'Aplikasi manajemen untuk B13 Garment',
 };
 
 export default function RootLayout({ children }) {
   return (
     <html lang="id">
-      <head>
-        <link
-          rel="stylesheet"
-          href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
-          integrity="sha512-iecdLmaskl7CVkqkXNQ/ZH/XLlvWZOJyj7Yy7tcenmpD1ypASozpmT/E0iPtmFIB46ZmdtAc9eNBvH0H/ZpiBw=="
-          crossOrigin="anonymous"
-          referrerPolicy="no-referrer"
-        />
-      </head>
-      <body className={inter.className}>
-        {children}
-        <Toaster />
+      <body className={`${inter.className} bg-slate-100`}>
+        <div className="flex min-h-screen">
+          <Sidebar /> {/* Tambahkan Sidebar di sini */}
+          
+          {/* Konten Utama */}
+          <main className="flex-1 lg:pl-64">
+            {/* Padding atas untuk memberi ruang dari tombol menu mobile */}
+            <div className="pt-20 lg:pt-0 p-4 sm:p-6 lg:p-8">
+              {children}
+            </div>
+          </main>
+        </div>
       </body>
     </html>
   );

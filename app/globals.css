@@ -1,0 +1,8 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Tambahkan style global kustom di sini jika perlu */
+body {
+  background-color: #f1f5f9; /* bg-slate-100 */
+}
