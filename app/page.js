@@ -18,7 +18,6 @@ import {
   Trash2,
   Loader2,
   Calendar,
-  User,
   Package
 } from 'lucide-react';
 
