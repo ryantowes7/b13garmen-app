@@ -3,18 +3,11 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { formatRupiah } from '@/lib/helpers';
-import { useRouter } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import {
   Card,
   CardContent,
@@ -23,26 +16,29 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import {
-  ClipboardList,
+  Edit,
   Plus,
   Trash2,
   User,
   Package,
-  DollarSign,
   Calendar,
   Save,
   ArrowLeft,
   Loader2,
   AlertCircle,
-  Info
+  DollarSign,
 } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
 import { SmartSelect } from '@/components/SmartSelect';
 
-export default function OrderanPage() {
+export default function EditOrderPage() {
+  const params = useParams();
   const router = useRouter();
+  const orderId = params.id;
+  
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [order, setOrder] = useState(null);
 
   // Data Pemesan
   const [dataPemesan, setDataPemesan] = useState({
@@ -65,6 +61,7 @@ export default function OrderanPage() {
   const [deadline, setDeadline] = useState('');
   const [gambarMockup, setGambarMockup] = useState(null);
   const [gambarMockupPreview, setGambarMockupPreview] = useState(null);
+  const [existingMockupUrl, setExistingMockupUrl] = useState(null);
 
   // Katalog Data
   const [katalogProduk, setKatalogProduk] = useState([]);
@@ -76,14 +73,16 @@ export default function OrderanPage() {
   const [daftarToko, setDaftarToko] = useState([]);
 
   useEffect(() => {
-    fetchKatalogData();
-    // Set tanggal default hari ini
-    const today = new Date().toISOString().split('T')[0];
-    setTanggalPesan(today);
-  }, []);
+    if (orderId) {
+      fetchOrderData();
+    }
+  }, [orderId]);
 
-  async function fetchKatalogData() {
+  async function fetchOrderData() {
     try {
+      setLoading(true);
+
+      // Fetch katalog data first
       const [produkRes, bahanRes, percetakanRes, jasaRes] = await Promise.all([
         supabase.from('produk').select('*').order('kategori_produk, produk, jenis'),
         supabase.from('bahan').select('*').order('nama_toko, jenis'),
@@ -94,18 +93,144 @@ export default function OrderanPage() {
       if (produkRes.data) setKatalogProduk(produkRes.data);
       if (bahanRes.data) {
         setKatalogBahan(bahanRes.data);
-        // Extract unique toko names
         const tokoSet = new Set(bahanRes.data.map(b => b.nama_toko));
         setDaftarToko([...tokoSet]);
       }
       if (percetakanRes.data) setKatalogPercetakan(percetakanRes.data);
       if (jasaRes.data) setKatalogJasa(jasaRes.data);
 
-      // Add first pesanan by default
-      tambahPesanan();
+      // Fetch order data
+      const { data: orderData, error: orderError } = await supabase
+        .from('orders')
+        .select('*')
+        .eq('id', orderId)
+        .single();
+
+      if (orderError) {
+        console.error('Error fetching order:', orderError);
+        alert('Gagal memuat data order');
+        router.push('/history');
+        return;
+      }
+
+      setOrder(orderData);
+
+      // Set data pemesan
+      setDataPemesan({
+        nama: orderData.nama || '',
+        nohp: orderData.nohp || '',
+        alamat: orderData.alamat || ''
+      });
+
+      // Set pembayaran & jadwal
+      setDp(orderData.dp || 0);
+      setTanggalPesan(orderData.tanggal_pesan || '');
+      setDeadline(orderData.deadline || '');
+      
+      if (orderData.gambar_mockup) {
+        setExistingMockupUrl(orderData.gambar_mockup);
+        setGambarMockupPreview(orderData.gambar_mockup);
+      }
+
+      // Parse items_data untuk pesanan
+      let itemsData = { pesanan: [] };
+      try {
+        if (orderData.items_data) {
+          itemsData = typeof orderData.items_data === 'string' 
+            ? JSON.parse(orderData.items_data) 
+            : orderData.items_data;
+        }
+      } catch (e) {
+        console.error('Error parsing items_data:', e);
+      }
+
+      // Set pesanan list
+      if (itemsData.pesanan && Array.isArray(itemsData.pesanan) && itemsData.pesanan.length > 0) {
+        const loadedPesanan = itemsData.pesanan.map((p, idx) => ({
+          id: Date.now() + idx,
+          kategori_produk: p.kategori_produk || p.jenis_produk || '',
+          produk: p.produk || p.jenis || '',
+          jenis: p.jenis || p.model || '',
+          model: p.model || p.tipe_desain || '',
+          tipe_desain: p.tipe_desain || '',
+          // Garment specific
+          toko: p.toko || '',
+          jenis_kain: p.jenis_kain || '',
+          warna: p.warna || '',
+          bahan_tambahan: p.bahan_tambahan || [],
+          lengan_pendek: p.lengan_pendek !== undefined ? p.lengan_pendek : true,
+          lengan_panjang: p.lengan_panjang !== undefined ? p.lengan_panjang : false,
+          ukuran_pendek: p.ukuran_pendek || { XS: 0, S: 0, M: 0, L: 0, XL: 0 },
+          ukuran_panjang: p.ukuran_panjang || { XS: 0, S: 0, M: 0, L: 0, XL: 0 },
+          custom_sizes_pendek: p.custom_sizes_pendek || [],
+          custom_sizes_panjang: p.custom_sizes_panjang || [],
+          ukuran_lainnya: p.ukuran_lainnya || [],
+          harga_satuan_pendek: p.harga_satuan_pendek || p.harga_satuan || 0,
+          harga_satuan_panjang: p.harga_satuan_panjang || 0,
+          // Advertising specific
+          items_advertising: p.items_advertising || [],
+          // Jasa specific
+          items_jasa: p.items_jasa || []
+        }));
+        setPesananList(loadedPesanan);
+      } else {
+        // Fallback to single pesanan structure
+        tambahPesanan();
+      }
+
+      // Fetch biaya produksi
+      const { data: biayaData, error: biayaError } = await supabase
+        .from('biaya_produksi')
+        .select('*')
+        .eq('order_id', orderId);
+
+      if (biayaError) {
+        console.error('Error fetching biaya produksi:', biayaError);
+      } else if (biayaData) {
+        // Parse biaya produksi
+        const kainItems = [];
+        const percetakanItems = [];
+        const jasaItems = [];
+
+        biayaData.forEach(item => {
+          if (item.kategori === 'Kain') {
+            kainItems.push({
+              id: Date.now() + Math.random(),
+              nama: item.jenis,
+              harga: item.harga,
+              jumlah: item.jumlah
+            });
+          } else if (item.kategori === 'Percetakan') {
+            const parts = item.jenis.split(' - ');
+            percetakanItems.push({
+              id: Date.now() + Math.random(),
+              jenis: parts[0] || '',
+              model: parts[1] || '',
+              tipe: parts[2] || '',
+              harga: item.harga,
+              jumlah: item.jumlah
+            });
+          } else if (item.kategori === 'Jasa') {
+            const parts = item.jenis.split(' - ');
+            jasaItems.push({
+              id: Date.now() + Math.random(),
+              jasa: parts[0] || '',
+              jenis: parts[1] || '',
+              tipe: parts[2] || '',
+              harga: item.harga,
+              jumlah: item.jumlah
+            });
+          }
+        });
+
+        setBiayaKain(kainItems);
+        setBiayaPercetakan(percetakanItems);
+        setBiayaJasa(jasaItems);
+      }
+
     } catch (error) {
-      console.error('Error fetching katalog:', error);
-      alert('Gagal memuat data katalog');
+      console.error('Error in fetchOrderData:', error);
+      alert('Terjadi kesalahan saat memuat data');
     } finally {
       setLoading(false);
     }
@@ -119,7 +244,6 @@ export default function OrderanPage() {
       jenis: '',
       model: '',
       tipe_desain: '',
-      // Garment specific
       toko: '',
       jenis_kain: '',
       warna: '',
@@ -133,9 +257,7 @@ export default function OrderanPage() {
       ukuran_lainnya: [],
       harga_satuan_pendek: 0,
       harga_satuan_panjang: 0,
-      // Advertising specific
       items_advertising: [],
-      // Jasa specific
       items_jasa: []
     };
     setPesananList([...pesananList, newPesanan]);
@@ -155,7 +277,6 @@ export default function OrderanPage() {
     setPesananList(pesananList.map(p => {
       if (p.id === id) {
         const updated = { ...p, [field]: value };
-        // Reset dependent fields when parent changes
         if (field === 'kategori_produk') {
           updated.produk = '';
           updated.jenis = '';
@@ -228,7 +349,7 @@ export default function OrderanPage() {
       if (p.id === pesananId) {
         return {
           ...p,
-          bahan_tambahan: [...p.bahan_tambahan, { id: Date.now(), toko: '', jenis: '', warna: '' }]
+          bahan_tambahan: [...(p.bahan_tambahan || []), { id: Date.now(), toko: '', jenis: '', warna: '' }]
         };
       }
       return p;
@@ -240,7 +361,7 @@ export default function OrderanPage() {
       if (p.id === pesananId) {
         return {
           ...p,
-          bahan_tambahan: p.bahan_tambahan.filter(b => b.id !== bahanId)
+          bahan_tambahan: (p.bahan_tambahan || []).filter(b => b.id !== bahanId)
         };
       }
       return p;
@@ -252,7 +373,7 @@ export default function OrderanPage() {
       if (p.id === pesananId) {
         return {
           ...p,
-          bahan_tambahan: p.bahan_tambahan.map(b => {
+          bahan_tambahan: (p.bahan_tambahan || []).map(b => {
             if (b.id === bahanId) {
               const updated = { ...b, [field]: value };
               if (field === 'toko') {
@@ -277,7 +398,7 @@ export default function OrderanPage() {
         const field = `custom_sizes_${jenis}`;
         return {
           ...p,
-          [field]: [...p[field], { id: Date.now(), nama: '', jumlah: 0, harga: 0 }]
+          [field]: [...(p[field] || []), { id: Date.now(), nama: '', jumlah: 0, harga: 0 }]
         };
       }
       return p;
@@ -290,7 +411,7 @@ export default function OrderanPage() {
         const field = `custom_sizes_${jenis}`;
         return {
           ...p,
-          [field]: p[field].filter(s => s.id !== sizeId)
+          [field]: (p[field] || []).filter(s => s.id !== sizeId)
         };
       }
       return p;
@@ -303,7 +424,7 @@ export default function OrderanPage() {
         const fieldName = `custom_sizes_${jenis}`;
         return {
           ...p,
-          [fieldName]: p[fieldName].map(s => s.id === sizeId ? { ...s, [field]: value } : s)
+          [fieldName]: (p[fieldName] || []).map(s => s.id === sizeId ? { ...s, [field]: value } : s)
         };
       }
       return p;
@@ -315,7 +436,7 @@ export default function OrderanPage() {
       if (p.id === pesananId) {
         return {
           ...p,
-          ukuran_lainnya: [...p.ukuran_lainnya, { id: Date.now(), nama: '', harga: 0, jumlah: 0 }]
+          ukuran_lainnya: [...(p.ukuran_lainnya || []), { id: Date.now(), nama: '', harga: 0, jumlah: 0 }]
         };
       }
       return p;
@@ -327,7 +448,7 @@ export default function OrderanPage() {
       if (p.id === pesananId) {
         return {
           ...p,
-          ukuran_lainnya: p.ukuran_lainnya.filter(u => u.id !== ukuranId)
+          ukuran_lainnya: (p.ukuran_lainnya || []).filter(u => u.id !== ukuranId)
         };
       }
       return p;
@@ -339,7 +460,7 @@ export default function OrderanPage() {
       if (p.id === pesananId) {
         return {
           ...p,
-          ukuran_lainnya: p.ukuran_lainnya.map(u => u.id === ukuranId ? { ...u, [field]: value } : u)
+          ukuran_lainnya: (p.ukuran_lainnya || []).map(u => u.id === ukuranId ? { ...u, [field]: value } : u)
         };
       }
       return p;
@@ -352,14 +473,13 @@ export default function OrderanPage() {
         const field = `ukuran_${jenis}`;
         return {
           ...p,
-          [field]: { ...p[field], [size]: parseInt(value) || 0 }
+          [field]: { ...(p[field] || {}), [size]: parseInt(value) || 0 }
         };
       }
       return p;
     }));
   }
 
-  // Advertising Functions
   function tambahItemAdvertising(pesananId) {
     setPesananList(pesananList.map(p => {
       if (p.id === pesananId) {
@@ -377,7 +497,7 @@ export default function OrderanPage() {
       if (p.id === pesananId) {
         return {
           ...p,
-          items_advertising: p.items_advertising.filter(item => item.id !== itemId)
+          items_advertising: (p.items_advertising || []).filter(item => item.id !== itemId)
         };
       }
       return p;
@@ -389,7 +509,7 @@ export default function OrderanPage() {
       if (p.id === pesananId) {
         return {
           ...p,
-          items_advertising: p.items_advertising.map(item => 
+          items_advertising: (p.items_advertising || []).map(item => 
             item.id === itemId ? { ...item, [field]: value } : item
           )
         };
@@ -398,7 +518,6 @@ export default function OrderanPage() {
     }));
   }
 
-  // Jasa/Lainnya Functions
   function tambahItemJasa(pesananId) {
     setPesananList(pesananList.map(p => {
       if (p.id === pesananId) {
@@ -416,7 +535,7 @@ export default function OrderanPage() {
       if (p.id === pesananId) {
         return {
           ...p,
-          items_jasa: p.items_jasa.filter(item => item.id !== itemId)
+          items_jasa: (p.items_jasa || []).filter(item => item.id !== itemId)
         };
       }
       return p;
@@ -428,7 +547,7 @@ export default function OrderanPage() {
       if (p.id === pesananId) {
         return {
           ...p,
-          items_jasa: p.items_jasa.map(item => 
+          items_jasa: (p.items_jasa || []).map(item => 
             item.id === itemId ? { ...item, [field]: value } : item
           )
         };
@@ -437,7 +556,6 @@ export default function OrderanPage() {
     }));
   }
 
-  // Biaya Produksi Functions
   function tambahBiayaKain() {
     setBiayaKain([...biayaKain, { id: Date.now(), nama: '', harga: 0, jumlah: 0 }]);
   }
@@ -446,7 +564,6 @@ export default function OrderanPage() {
     setBiayaKain(biayaKain.map(b => {
       if (b.id === id) {
         const updated = { ...b, [field]: value };
-        // Auto-fill harga jika nama dipilih dari katalog
         if (field === 'nama' && value) {
           const bahanData = katalogBahan.find(k => 
             `${k.nama_toko} - ${k.jenis} - ${k.warna}` === value
@@ -479,7 +596,6 @@ export default function OrderanPage() {
         } else if (field === 'model') {
           updated.tipe = '';
         }
-        // Auto-fill harga jika lengkap
         if (updated.jenis && updated.model && updated.tipe) {
           const cetakData = katalogPercetakan.find(k => 
             k.jenis === updated.jenis && k.model === updated.model && k.tipe_ukuran === updated.tipe
@@ -522,7 +638,6 @@ export default function OrderanPage() {
         } else if (field === 'jenis') {
           updated.tipe = '';
         }
-        // Auto-fill harga jika lengkap
         if (updated.jasa && updated.jenis && updated.tipe) {
           const jasaData = katalogJasa.find(k => 
             k.jasa === updated.jasa && k.jenis === updated.jenis && k.tipe === updated.tipe
@@ -551,42 +666,34 @@ export default function OrderanPage() {
     return [];
   }
 
-  // Kalkulasi
   function hitungTotalTagihan() {
     let total = 0;
     
-    // Hitung dari pesanan
     pesananList.forEach(pesanan => {
       if (pesanan.kategori_produk === 'Garment') {
-        // Lengan Pendek
         if (pesanan.lengan_pendek) {
-          const totalPendek = Object.values(pesanan.ukuran_pendek).reduce((sum, val) => sum + val, 0);
+          const totalPendek = Object.values(pesanan.ukuran_pendek || {}).reduce((sum, val) => sum + val, 0);
           total += totalPendek * (parseFloat(pesanan.harga_satuan_pendek) || 0);
           
-          // Custom sizes pendek
-          pesanan.custom_sizes_pendek.forEach(cs => {
+          (pesanan.custom_sizes_pendek || []).forEach(cs => {
             total += (parseFloat(cs.jumlah) || 0) * (parseFloat(cs.harga) || 0);
           });
         }
         
-        // Lengan Panjang
         if (pesanan.lengan_panjang) {
-          const totalPanjang = Object.values(pesanan.ukuran_panjang).reduce((sum, val) => sum + val, 0);
+          const totalPanjang = Object.values(pesanan.ukuran_panjang || {}).reduce((sum, val) => sum + val, 0);
           total += totalPanjang * (parseFloat(pesanan.harga_satuan_panjang) || 0);
           
-          // Custom sizes panjang
-          pesanan.custom_sizes_panjang.forEach(cs => {
+          (pesanan.custom_sizes_panjang || []).forEach(cs => {
             total += (parseFloat(cs.jumlah) || 0) * (parseFloat(cs.harga) || 0);
           });
         }
         
-        // Ukuran Lainnya
-        pesanan.ukuran_lainnya.forEach(u => {
+        (pesanan.ukuran_lainnya || []).forEach(u => {
           total += (parseFloat(u.jumlah) || 0) * (parseFloat(u.harga) || 0);
         });
       } else if (pesanan.kategori_produk === 'Advertising') {
-        // Hitung advertising items
-        pesanan.items_advertising?.forEach(item => {
+        (pesanan.items_advertising || []).forEach(item => {
           const dimensi = item.dimensi || '0';
           let dimensiValue = 0;
           if (dimensi.includes('x')) {
@@ -600,8 +707,7 @@ export default function OrderanPage() {
           total += dimensiValue * harga * jumlah;
         });
       } else if (pesanan.kategori_produk === 'Jasa' || pesanan.kategori_produk === 'Lainnya') {
-        // Hitung jasa items
-        pesanan.items_jasa?.forEach(item => {
+        (pesanan.items_jasa || []).forEach(item => {
           const harga = parseFloat(item.harga) || 0;
           const jumlah = parseFloat(item.jumlah) || 0;
           total += harga * jumlah;
@@ -615,17 +721,14 @@ export default function OrderanPage() {
   function hitungTotalBiayaProduksi() {
     let total = 0;
     
-    // Kain
     biayaKain.forEach(b => {
       total += (parseFloat(b.harga) || 0) * (parseFloat(b.jumlah) || 0);
     });
     
-    // Percetakan
     biayaPercetakan.forEach(b => {
       total += (parseFloat(b.harga) || 0) * (parseFloat(b.jumlah) || 0);
     });
     
-    // Jasa
     biayaJasa.forEach(b => {
       total += (parseFloat(b.harga) || 0) * (parseFloat(b.jumlah) || 0);
     });
@@ -648,7 +751,6 @@ export default function OrderanPage() {
   async function handleSubmit(e) {
     e.preventDefault();
     
-    // Validation
     if (!dataPemesan.nama || !dataPemesan.nohp || !dataPemesan.alamat) {
       alert('Mohon lengkapi data pemesan');
       return;
@@ -667,8 +769,9 @@ export default function OrderanPage() {
     setSaving(true);
     
     try {
-      // Upload gambar mockup jika ada
-      let mockupUrl = null;
+      let mockupUrl = existingMockupUrl;
+      
+      // Upload gambar mockup baru jika ada
       if (gambarMockup) {
         const fileName = `mockup_${Date.now()}_${gambarMockup.name}`;
         const { data: uploadData, error: uploadError } = await supabase.storage
@@ -685,16 +788,12 @@ export default function OrderanPage() {
         }
       }
       
-      // Generate nomor orderan
-      const noOrderan = `ORD${Date.now()}`;
-      
       const totalTagihan = hitungTotalTagihan();
       const totalBiaya = hitungTotalBiayaProduksi();
       const sisaBayar = totalTagihan - (parseFloat(dp) || 0);
       
-      // Prepare order data
+      // Update order data
       const orderData = {
-        no_orderan: noOrderan,
         nama: dataPemesan.nama,
         nohp: dataPemesan.nohp,
         alamat: dataPemesan.alamat,
@@ -722,17 +821,25 @@ export default function OrderanPage() {
         }
       };
       
-      // Insert order
-      const { data: insertedOrder, error: orderError } = await supabase
+      // Update order
+      const { error: orderError } = await supabase
         .from('orders')
-        .insert([orderData])
-        .select();
+        .update(orderData)
+        .eq('id', orderId);
       
       if (orderError) throw orderError;
       
-      const orderId = insertedOrder[0].id;
+      // Delete existing biaya produksi
+      const { error: deleteError } = await supabase
+        .from('biaya_produksi')
+        .delete()
+        .eq('order_id', orderId);
       
-      // Insert biaya produksi
+      if (deleteError) {
+        console.error('Error deleting old biaya produksi:', deleteError);
+      }
+      
+      // Insert new biaya produksi
       const biayaProduksiData = [];
       
       biayaKain.forEach(b => {
@@ -784,11 +891,11 @@ export default function OrderanPage() {
         }
       }
       
-      alert('Order berhasil disimpan!');
-      router.push('/');
+      alert('Order berhasil diupdate!');
+      router.push(`/order/${orderId}`);
     } catch (error) {
-      console.error('Error saving order:', error);
-      alert('Gagal menyimpan order: ' + error.message);
+      console.error('Error updating order:', error);
+      alert('Gagal mengupdate order: ' + error.message);
     } finally {
       setSaving(false);
     }
@@ -799,7 +906,23 @@ export default function OrderanPage() {
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
           <Loader2 className="animate-spin h-16 w-16 text-sky-600 mx-auto mb-4" />
-          <p className="text-lg text-gray-600 font-medium">Memuat form order...</p>
+          <p className="text-lg text-gray-600 font-medium">Memuat data order...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!order) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <AlertCircle className="h-16 w-16 text-red-500 mx-auto mb-4" />
+          <h2 className="text-2xl font-bold text-gray-800 mb-2">Order Tidak Ditemukan</h2>
+          <p className="text-gray-600 mb-4">Order dengan ID tersebut tidak ditemukan.</p>
+          <Button onClick={() => router.push('/history')}>
+            <ArrowLeft className="mr-2" size={18} />
+            Kembali ke History
+          </Button>
         </div>
       </div>
     );
@@ -812,14 +935,14 @@ export default function OrderanPage() {
   return (
     <div className="space-y-6 pb-8">
       {/* Header */}
-      <div className="bg-gradient-to-r from-sky-600 to-sky-500 p-6 rounded-xl shadow-lg">
+      <div className="bg-gradient-to-r from-amber-600 to-amber-500 p-6 rounded-xl shadow-lg">
         <div className="flex items-center gap-4 mb-2">
           <div className="p-3 bg-white/20 backdrop-blur-sm rounded-xl">
-            <ClipboardList className="text-white" size={32} />
+            <Edit className="text-white" size={32} />
           </div>
           <div>
-            <h1 className="text-3xl font-bold text-white">Tambah Order Baru</h1>
-            <p className="text-sky-100 mt-1">Isi form di bawah untuk membuat order baru</p>
+            <h1 className="text-3xl font-bold text-white">Edit Order</h1>
+            <p className="text-amber-100 mt-1">Edit order {order.no_orderan}</p>
           </div>
         </div>
       </div>
@@ -918,84 +1041,70 @@ export default function OrderanPage() {
                   )}
                 </div>
 
-                {/* Kategori Produk */}
-                <div className="space-y-4">
-                  <div className="bg-sky-100 p-4 rounded-lg border-l-4 border-sky-600">
-                    <Label className="text-base font-semibold mb-2 block">Kategori Produk <span className="text-red-500">*</span></Label>
-                    <Select
-                      value={pesanan.kategori_produk}
-                      onValueChange={(value) => updatePesanan(pesanan.id, 'kategori_produk', value)}
-                      required
-                    >
-                      <SelectTrigger className="bg-white">
-                        <SelectValue placeholder="Pilih kategori produk..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Garment">Garment</SelectItem>
-                        <SelectItem value="Advertising">Advertising</SelectItem>
-                        <SelectItem value="Jasa">Jasa</SelectItem>
-                        <SelectItem value="Lainnya">Lainnya</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <p className="text-xs text-gray-600 mt-2">Pilih kategori untuk menampilkan form yang sesuai</p>
-                  </div>
-
-                  {/* Detail Pesanan - Garment */}
-                  {pesanan.kategori_produk === 'Garment' && (
-                    <GarmentForm
-                      pesanan={pesanan}
-                      updatePesanan={updatePesanan}
-                      getFilteredOptions={getFilteredOptions}
-                      daftarToko={daftarToko}
-                      tambahBahanTambahan={tambahBahanTambahan}
-                      hapusBahanTambahan={hapusBahanTambahan}
-                      updateBahanTambahan={updateBahanTambahan}
-                      updateUkuran={updateUkuran}
-                      tambahCustomSize={tambahCustomSize}
-                      hapusCustomSize={hapusCustomSize}
-                      updateCustomSize={updateCustomSize}
-                      tambahUkuranLainnya={tambahUkuranLainnya}
-                      hapusUkuranLainnya={hapusUkuranLainnya}
-                      updateUkuranLainnya={updateUkuranLainnya}
-                    />
-                  )}
-
-                  {/* Detail Pesanan - Advertising */}
-                  {pesanan.kategori_produk === 'Advertising' && (
-                    <AdvertisingForm
-                      pesanan={pesanan}
-                      updatePesanan={updatePesanan}
-                      getFilteredOptions={getFilteredOptions}
-                      tambahItemAdvertising={tambahItemAdvertising}
-                      hapusItemAdvertising={hapusItemAdvertising}
-                      updateItemAdvertising={updateItemAdvertising}
-                    />
-                  )}
-
-                  {/* Detail Pesanan - Jasa */}
-                  {pesanan.kategori_produk === 'Jasa' && (
-                    <JasaForm
-                      pesanan={pesanan}
-                      updatePesanan={updatePesanan}
-                      getFilteredOptions={getFilteredOptions}
-                      tambahItemJasa={tambahItemJasa}
-                      hapusItemJasa={hapusItemJasa}
-                      updateItemJasa={updateItemJasa}
-                    />
-                  )}
-
-                  {/* Detail Pesanan - Lainnya */}
-                  {pesanan.kategori_produk === 'Lainnya' && (
-                    <LainnyaForm
-                      pesanan={pesanan}
-                      updatePesanan={updatePesanan}
-                      getFilteredOptions={getFilteredOptions}
-                      tambahItemJasa={tambahItemJasa}
-                      hapusItemJasa={hapusItemJasa}
-                      updateItemJasa={updateItemJasa}
-                    />
-                  )}
+                {/* Kategori Produk Selector */}
+                <div className="mb-6">
+                  <Label className="text-base font-semibold mb-2 block">Kategori Produk <span className="text-red-500">*</span></Label>
+                  <SmartSelect
+                    value={pesanan.kategori_produk}
+                    onChange={(value) => updatePesanan(pesanan.id, 'kategori_produk', value)}
+                    options={['Garment', 'Advertising', 'Jasa', 'Lainnya']}
+                    placeholder="Pilih kategori produk..."
+                    required
+                  />
                 </div>
+
+                {/* Detail per kategori */}
+                {pesanan.kategori_produk === 'Garment' && (
+                  <GarmentForm
+                    pesanan={pesanan}
+                    updatePesanan={updatePesanan}
+                    getFilteredOptions={getFilteredOptions}
+                    daftarToko={daftarToko}
+                    tambahBahanTambahan={tambahBahanTambahan}
+                    hapusBahanTambahan={hapusBahanTambahan}
+                    updateBahanTambahan={updateBahanTambahan}
+                    updateUkuran={updateUkuran}
+                    tambahCustomSize={tambahCustomSize}
+                    hapusCustomSize={hapusCustomSize}
+                    updateCustomSize={updateCustomSize}
+                    tambahUkuranLainnya={tambahUkuranLainnya}
+                    hapusUkuranLainnya={hapusUkuranLainnya}
+                    updateUkuranLainnya={updateUkuranLainnya}
+                  />
+                )}
+
+                {pesanan.kategori_produk === 'Advertising' && (
+                  <AdvertisingForm
+                    pesanan={pesanan}
+                    updatePesanan={updatePesanan}
+                    getFilteredOptions={getFilteredOptions}
+                    tambahItemAdvertising={tambahItemAdvertising}
+                    hapusItemAdvertising={hapusItemAdvertising}
+                    updateItemAdvertising={updateItemAdvertising}
+                  />
+                )}
+
+                {pesanan.kategori_produk === 'Jasa' && (
+                  <JasaForm
+                    pesanan={pesanan}
+                    updatePesanan={updatePesanan}
+                    getFilteredOptions={getFilteredOptions}
+                    tambahItemJasa={tambahItemJasa}
+                    hapusItemJasa={hapusItemJasa}
+                    updateItemJasa={updateItemJasa}
+                  />
+                )}
+
+                {pesanan.kategori_produk === 'Lainnya' && (
+                  <LainnyaForm
+                    pesanan={pesanan}
+                    updatePesanan={updatePesanan}
+                    getFilteredOptions={getFilteredOptions}
+                    tambahItemJasa={tambahItemJasa}
+                    hapusItemJasa={hapusItemJasa}
+                    updateItemJasa={updateItemJasa}
+                  />
+                )}
               </div>
             ))}
           </CardContent>
@@ -1115,16 +1224,16 @@ export default function OrderanPage() {
           <Button
             type="button"
             variant="outline"
-            onClick={() => router.push('/')}
+            onClick={() => router.push(`/order/${orderId}`)}
             disabled={saving}
           >
             <ArrowLeft size={18} className="mr-2" />
-            Kembali
+            Batal
           </Button>
           <Button
             type="submit"
             disabled={saving}
-            className="bg-gradient-to-r from-sky-600 to-sky-500 hover:from-sky-700 hover:to-sky-600 min-w-[150px]"
+            className="bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-700 hover:to-amber-600 min-w-[150px]"
           >
             {saving ? (
               <>
@@ -1134,7 +1243,7 @@ export default function OrderanPage() {
             ) : (
               <>
                 <Save size={18} className="mr-2" />
-                Simpan Order
+                Simpan Perubahan
               </>
             )}
           </Button>
@@ -1143,6 +1252,9 @@ export default function OrderanPage() {
     </div>
   );
 }
+
+// Import komponen-komponen form dari orderan/page.js
+// Karena file ini sangat panjang, kita akan import dari file terpisah atau copy paste dari orderan/page.js
 
 // Garment Form Component
 function GarmentForm({
@@ -1396,6 +1508,18 @@ function GarmentForm({
                 ))}
               </div>
             )}
+
+            {/* Harga Satuan Pendek */}
+            <div className="mt-4">
+              <Label className="text-sm mb-1 block">Harga Satuan Lengan Pendek (Rp)</Label>
+              <Input
+                type="number"
+                min="0"
+                value={pesanan.harga_satuan_pendek}
+                onChange={(e) => updatePesanan(pesanan.id, 'harga_satuan_pendek', e.target.value)}
+                placeholder="0"
+              />
+            </div>
           </div>
         )}
 
@@ -1465,6 +1589,18 @@ function GarmentForm({
                 ))}
               </div>
             )}
+
+            {/* Harga Satuan Panjang */}
+            <div className="mt-4">
+              <Label className="text-sm mb-1 block">Harga Satuan Lengan Panjang (Rp)</Label>
+              <Input
+                type="number"
+                min="0"
+                value={pesanan.harga_satuan_panjang}
+                onChange={(e) => updatePesanan(pesanan.id, 'harga_satuan_panjang', e.target.value)}
+                placeholder="0"
+              />
+            </div>
           </div>
         )}
       </div>
@@ -1520,33 +1656,6 @@ function GarmentForm({
         ) : (
           <p className="text-sm text-gray-500 italic">Belum ada ukuran lainnya</p>
         )}
-      </div>
-
-      {/* Harga Satuan */}
-      <div>
-        <Label className="text-sm font-bold text-gray-700 mb-3 block uppercase tracking-wide">Harga Satuan</Label>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <Label className="text-sm mb-1 block">Harga Satuan Lengan Pendek (Rp)</Label>
-            <Input
-              type="number"
-              min="0"
-              value={pesanan.harga_satuan_pendek}
-              onChange={(e) => updatePesanan(pesanan.id, 'harga_satuan_pendek', e.target.value)}
-              placeholder="0"
-            />
-          </div>
-          <div>
-            <Label className="text-sm mb-1 block">Harga Satuan Lengan Panjang (Rp)</Label>
-            <Input
-              type="number"
-              min="0"
-              value={pesanan.harga_satuan_panjang}
-              onChange={(e) => updatePesanan(pesanan.id, 'harga_satuan_panjang', e.target.value)}
-              placeholder="0"
-            />
-          </div>
-        </div>
       </div>
     </div>
   );
@@ -1620,7 +1729,6 @@ function AdvertisingForm({
           </Button>
         </div>
         
-        {/* Label Header Kolom */}
         {pesanan.items_advertising && pesanan.items_advertising.length > 0 && (
           <div className="grid grid-cols-4 gap-2 px-3 mb-2">
             <Label className="text-xs font-bold text-gray-600 uppercase">Dimensi (contoh: 2x3)</Label>
@@ -1687,7 +1795,6 @@ function JasaForm({
 
   return (
     <div className="space-y-6 bg-white p-6 rounded-lg border">
-      {/* Detail Produk */}
       <div>
         <Label className="text-sm font-bold text-gray-700 mb-3 block uppercase tracking-wide">Detail Produk</Label>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -1725,7 +1832,6 @@ function JasaForm({
         </div>
       </div>
 
-      {/* Detail Pesanan Jasa */}
       <div>
         <div className="flex items-center justify-between mb-3">
           <Label className="text-sm font-bold text-gray-700 uppercase tracking-wide">Detail Pesanan Jasa</Label>
@@ -1740,7 +1846,6 @@ function JasaForm({
           </Button>
         </div>
         
-        {/* Label Header Kolom */}
         {pesanan.items_jasa && pesanan.items_jasa.length > 0 && (
           <div className="grid grid-cols-4 gap-2 px-3 mb-2">
             <Label className="text-xs font-bold text-gray-600 uppercase">Keterangan</Label>
@@ -1792,7 +1897,6 @@ function JasaForm({
   );
 }
 
-// Lainnya Form Component (sama dengan Jasa)
 function LainnyaForm(props) {
   return <JasaForm {...props} />;
 }
@@ -1819,8 +1923,6 @@ function BiayaProduksiSection({
 }) {
   const jenisCetakOptions = [...new Set(katalogPercetakan.map(p => p.jenis))];
   const jenisJasaOptions = [...new Set(katalogJasa.map(j => j.jasa))];
-  
-  // Create options for kain dropdown
   const kainOptions = katalogBahan.map(b => `${b.nama_toko} - ${b.jenis} - ${b.warna}`);
 
   return (
@@ -1837,15 +1939,6 @@ function BiayaProduksiSection({
         </div>
       </CardHeader>
       <CardContent className="pt-6 space-y-6">
-        {/* Keterangan Info */}
-        <div className="bg-blue-50 border-l-4 border-blue-500 p-4 rounded-lg flex gap-3">
-          <Info className="text-blue-600 flex-shrink-0" size={20} />
-          <div className="text-sm text-blue-800">
-            <p className="font-semibold mb-1">Keterangan:</p>
-            <p>Data biaya produksi dapat dipilih dari katalog atau diisi manual. Anda dapat mengedit harga dan jumlah sesuai kebutuhan tanpa mengubah data di katalog.</p>
-          </div>
-        </div>
-
         {/* Kain */}
         <div>
           <div className="flex items-center justify-between mb-3">
@@ -1856,7 +1949,6 @@ function BiayaProduksiSection({
             </Button>
           </div>
           
-          {/* Label Header Kolom */}
           {biayaKain.length > 0 && (
             <div className="grid grid-cols-4 gap-2 px-3 mb-2">
               <Label className="text-xs font-bold text-gray-600 uppercase">Nama Kain</Label>
@@ -1917,7 +2009,6 @@ function BiayaProduksiSection({
             </Button>
           </div>
           
-          {/* Label Header Kolom */}
           {biayaPercetakan.length > 0 && (
             <div className="grid grid-cols-6 gap-2 px-3 mb-2">
               <Label className="text-xs font-bold text-gray-600 uppercase">Jenis</Label>
@@ -1998,7 +2089,6 @@ function BiayaProduksiSection({
             </Button>
           </div>
           
-          {/* Label Header Kolom */}
           {biayaJasa.length > 0 && (
             <div className="grid grid-cols-6 gap-2 px-3 mb-2">
               <Label className="text-xs font-bold text-gray-600 uppercase">Jasa</Label>
@@ -2119,7 +2209,6 @@ function RingkasanOrder({
                       <p><span className="font-medium">Detail:</span> {pesanan.produk || '-'} / {pesanan.jenis || '-'} / {pesanan.model || '-'}</p>
                       <p><span className="font-medium">Bahan:</span> {pesanan.toko || '-'} / {pesanan.jenis_kain || '-'} / {pesanan.warna || '-'}</p>
                       
-                      {/* Ukuran Pendek */}
                       {pesanan.lengan_pendek && (() => {
                         const totalPendek = Object.values(pesanan.ukuran_pendek).reduce((sum, val) => sum + val, 0);
                         const hargaPendek = parseFloat(pesanan.harga_satuan_pendek) || 0;
@@ -2138,7 +2227,6 @@ function RingkasanOrder({
                         );
                       })()}
                       
-                      {/* Ukuran Panjang */}
                       {pesanan.lengan_panjang && (() => {
                         const totalPanjang = Object.values(pesanan.ukuran_panjang).reduce((sum, val) => sum + val, 0);
                         const hargaPanjang = parseFloat(pesanan.harga_satuan_panjang) || 0;
@@ -2157,7 +2245,6 @@ function RingkasanOrder({
                         );
                       })()}
                       
-                      {/* Ukuran Lainnya */}
                       {pesanan.ukuran_lainnya && pesanan.ukuran_lainnya.length > 0 && (() => {
                         let lainnyaTotal = 0;
                         pesanan.ukuran_lainnya.forEach(u => {
