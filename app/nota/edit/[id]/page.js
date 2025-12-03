@@ -42,6 +42,7 @@ export default function EditNotaPage() {
   const [items, setItems] = useState([]);
   const [dp, setDp] = useState(0);
   const [catatan, setCatatan] = useState('');
+  const [namaCs, setNamaCs] = useState('Cs. Ratih'); // NEW: Nama CS field
 
   useEffect(() => {
     if (orderId) {
@@ -81,6 +82,7 @@ export default function EditNotaPage() {
         setItems(custom.items || parseOrderItems(orderData));
         setDp(custom.dp || orderData.dp);
         setCatatan(custom.catatan || '');
+        setNamaCs(custom.nama_cs || 'Cs. Ratih'); // Load nama CS
       } else {
         // Load from order data
         setNotaNumber(orderData.no_orderan);
@@ -88,6 +90,7 @@ export default function EditNotaPage() {
         setItems(parseOrderItems(orderData));
         setDp(orderData.dp);
         setCatatan('');
+        setNamaCs('Cs. Ratih'); // Default nama CS
       }
     } catch (error) {
       console.error('Error fetching order:', error);
@@ -307,6 +310,7 @@ export default function EditNotaPage() {
         total_tagihan: totalTagihan,
         sisa: sisa,
         catatan: catatan,
+        nama_cs: namaCs, // NEW: Save nama CS
         // Keep customer data from original order (read-only)
         nama: order.nama,
         nohp: order.nohp,
@@ -439,8 +443,8 @@ export default function EditNotaPage() {
           <CardDescription>Edit informasi nota sesuai kebutuhan</CardDescription>
         </CardHeader>
         <CardContent className="pt-6 space-y-6">
-          {/* Nomor Nota & Tanggal */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Nomor Nota, Tanggal & Nama CS */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <Label htmlFor="nota_number" className="text-base font-semibold">
                 Nomor Nota <span className="text-red-500">*</span>
@@ -462,6 +466,18 @@ export default function EditNotaPage() {
                 type="date"
                 value={tanggalNota}
                 onChange={(e) => setTanggalNota(e.target.value)}
+                className="mt-2"
+              />
+            </div>
+            <div>
+              <Label htmlFor="nama_cs" className="text-base font-semibold">
+                Nama CS <span className="text-red-500">*</span>
+              </Label>
+              <Input
+                id="nama_cs"
+                value={namaCs}
+                onChange={(e) => setNamaCs(e.target.value)}
+                placeholder="Contoh: Cs. Ratih"
                 className="mt-2"
               />
             </div>

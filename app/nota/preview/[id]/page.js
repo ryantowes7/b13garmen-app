@@ -13,8 +13,11 @@ import {
   AlertCircle,
   FileText,
   Printer,
-  Share2
+  Share2,
+  Image as ImageIcon
 } from 'lucide-react';
+import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
 
 export default function PreviewNotaPage() {
   const router = useRouter();
@@ -68,7 +71,8 @@ export default function PreviewNotaPage() {
           nama: orderData.nama,
           nohp: orderData.nohp,
           alamat: orderData.alamat,
-          catatan: ''
+          catatan: '',
+          nama_cs: 'Cs. Ratih' // Default CS name
         };
         setNotaData(parsedData);
       }
@@ -247,12 +251,114 @@ export default function PreviewNotaPage() {
     router.push(`/nota/edit/${orderId}`);
   }
 
+  
+  async function handleExportPDF() {
+    try {
+      const element = notaRef.current;
+      if (!element) return;
+
+      // Create canvas from HTML
+      const canvas = await html2canvas(element, {
+        scale: 2,
+        useCORS: true,
+        logging: false,
+        backgroundColor: '#ffffff'
+      });
+
+      const imgData = canvas.toDataURL('image/png');
+      
+      // A4 dimensions in mm
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = pdf.internal.pageSize.getHeight();
+      
+      // Calculate image dimensions to fit A4
+      const imgWidth = pdfWidth;
+      const imgHeight = (canvas.height * pdfWidth) / canvas.width;
+      
+      pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight);
+      pdf.save(`Nota_${notaData.nota_number}.pdf`);
+    } catch (error) {
+      console.error('Error exporting PDF:', error);
+      alert('Gagal mengexport PDF: ' + error.message);
+    }
+  }
+
+  async function handleExportImage() {
+    try {
+      const element = notaRef.current;
+      if (!element) return;
+
+      const canvas = await html2canvas(element, {
+        scale: 2,
+        useCORS: true,
+        logging: false,
+        backgroundColor: '#ffffff'
+      });
+
+      // Convert to blob
+      canvas.toBlob((blob) => {
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `Nota_${notaData.nota_number}.png`;
+        link.click();
+        URL.revokeObjectURL(url);
+      }, 'image/png');
+    } catch (error) {
+      console.error('Error exporting image:', error);
+      alert('Gagal mengexport gambar: ' + error.message);
+    }
+  }
+
+  async function handleSendWhatsApp() {
+    try {
+      const element = notaRef.current;
+      if (!element) return;
+
+      // Generate image first
+      const canvas = await html2canvas(element, {
+        scale: 2,
+        useCORS: true,
+        logging: false,
+        backgroundColor: '#ffffff'
+      });
+
+      // For WhatsApp, we'll open the web interface with a pre-filled message
+      // Note: Due to browser limitations, we can't directly send the image via WhatsApp Web
+      // User will need to manually attach the downloaded image
+      
+      const phoneNumber = '6281234036663'; // Format: country code + number
+      const message = `Nota ${notaData.nota_number} - ${notaData.nama}`;
+      const whatsappUrl = `https://wa.me/${phoneNumber}?text=${encodeURIComponent(message)}`;
+      
+      // Download image first
+      canvas.toBlob((blob) => {
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `Nota_${notaData.nota_number}.png`;
+        link.click();
+        URL.revokeObjectURL(url);
+        
+        // Open WhatsApp after a short delay
+        setTimeout(() => {
+          window.open(whatsappUrl, '_blank');
+          alert('Gambar nota telah didownload. Silahkan attach gambar tersebut di WhatsApp.');
+        }, 500);
+      }, 'image/png');
+    } catch (error) {
+      console.error('Error sending to WhatsApp:', error);
+      alert('Gagal mengirim ke WhatsApp: ' + error.message);
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
           <Loader2 className="animate-spin h-16 w-16 text-blue-600 mx-auto mb-4" />
-          <p className="text-lg text-gray-600 font-mediu">Memuat preview nota...</p>
+          <p className="text-lg text-gray-600 font-medium">Memuat preview nota...</p>
         </div>
       </div>
     );
@@ -306,23 +412,38 @@ export default function PreviewNotaPage() {
             </Button>
             <Button
               onClick={handlePrint}
-              className="bg-green-600 hover:bg-green-700 text-whit"
+              className="bg-green-600 hover:bg-green-700 text-white"
             >
               <Printer size={18} className="mr-2" />
               Print
             </Button>
             <Button
-              className="bg-yellow-600 hover:bg-yellow-700 text-white"
+              onClick={handleExportPDF}
+              className="bg-red-600 hover:bg-red-700 text-white"
             >
               <Download size={18} className="mr-2" />
-              Export
+              PDF
+            </Button>
+            <Button
+              onClick={handleExportImage}
+              className="bg-purple-600 hover:bg-purple-700 text-white"
+            >
+              <ImageIcon size={18} className="mr-2" />
+              Gambar
+            </Button>
+            <Button
+              onClick={handleSendWhatsApp}
+              className="bg-green-500 hover:bg-green-600 text-white"
+            >
+              <Share2 size={18} className="mr-2" />
+              WhatsApp
             </Button>
           </div>
         </div>
       </div>
 
       {/* Nota Preview - A4 Format */}
-      <div className="flex justify-cente">
+      <div className="flex justify-center">
         <div 
           ref={notaRef}
           className="bg-white shadow-2xl rounded-lg overflow-hidden print:shadow-none print:rounded-none"
@@ -335,99 +456,98 @@ export default function PreviewNotaPage() {
           {/* Nota Content */}
           <div className="p-8 sm:p-12">
             {/* Header */}
-            <div className="flex items-start justify-between mb-8 pb-6 border-b-2 border-gray-300">
-              {/* Left: Company Info */}
-              <div className="flex items-start gap-4">
-                {/* Logo Placeholder */}
-                <div className="flex-shrink-0 w-16 h-16 bg-gradient-to-br from-blue-600 to-blue-500 rounded-xl flex items-center justify-center shadow-lg">
-                  <span className="text-white font-bold text-2xl">B13</span>
-                </div>
-                
-                <div>
-                  <h1 className="text-2xl font-bold text-gray-900 mb-1">
-                    B13 FACTORY GR & ADV
+            <div className="mb-4">
+              {/* Company Info - Compact */}
+              <div className="flex items-center justify-center mb-2">
+                <div className="text-center">
+                  <h1 className="text-base font-bold text-gray-900">
+                    B13 Factory Garment & Adv
                   </h1>
-                  <p className="text-sm text-gray-600 leading-relaxed">
-                    Jl. Arowana Perum Kebonagung<br />
-                    Indah Blok 13 No 16
+                  <p className="text-xs text-gray-600 leading-tight">
+                    Jl. Arowana Perum Kebonagung Indah Blok. 13 No. 16, Kel. Kebonagung, Kec. Kaliwates - Jember
                   </p>
-                  <p className="text-sm text-gray-600 mt-1 font-semibold">
+                  <p className="text-xs text-gray-600 font-medium">
                     ☎ 081234036663
                   </p>
                 </div>
               </div>
+              
+              {/* Divider Line */}
+              <div className="border-t-2 border-gray-300 mt-2 mb-2"></div>
+            </div>
 
-              {/* Right: Date & Customer */}
+            {/* Order Number & Date - Compact */}
+            <div className="flex justify-between items-start mb-3">
+              <div>
+                <p className="text-xs font-semibold text-gray-900">
+                  No. Order: <span className="text-blue-600">{notaData.nota_number}</span>
+                </p>
+              </div>
               <div className="text-right">
-                <p className="text-sm text-gray-600 mb-1">
-                  <span className="font-semibold">Tanggal:</span>
-                </p>
-                <p className="text-base font-bold text-gray-900 mb-3">
-                  {formatTanggalIndonesia(notaData.tanggal_nota)}
-                </p>
-                
-                <p className="text-sm text-gray-600 mb-1">
-                  <span className="font-semibold">Kepada Yth.</span>
-                </p>
-                <p className="text-base font-bold text-gray-900">
-                  {notaData.nama}
-                </p>
-                <p className="text-sm text-gray-600">
-                  {notaData.alamat}
+                <p className="text-xs text-gray-600">
+                  Tanggal: <span className="font-semibold">{formatTanggalIndonesia(notaData.tanggal_nota)}</span>
                 </p>
               </div>
             </div>
 
-            {/* Nota Number */}
-            <div className="mb-6">
-              <p className="text-lg font-bold text-gray-900">
-                No. Nota <span className="text-blue-600">{notaData.nota_number}</span>
-              </p>
+            {/* Customer Info - Compact */}
+            <div className="mb-3 bg-gray-50 p-2 rounded">
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <div>
+                  <span className="font-semibold">Konsumen:</span> {notaData.nama}
+                </div>
+                <div>
+                  <span className="font-semibold">No. HP:</span> {notaData.nohp}
+                </div>
+                <div className="col-span-2">
+                  <span className="font-semibold">Alamat:</span> {notaData.alamat}
+                </div>
+              </div>
             </div>
 
-            {/* Items Table */}
-            <div className="mb-8 border-2 border-gray-300 rounded-lg overflow-hidden">
-              <table className="w-full">
-                <thead className="bg-gradient-to-r from-gray-100 to-gray-50">
+            {/* Items Table - Compact */}
+            <div className="mb-4 border border-gray-300 rounded overflow-hidden">
+              <table className="w-full text-xs">
+                <thead className="bg-gray-100">
                   <tr>
-                    <th className="px-3 py-3 text-left text-xs font-bold text-gray-700 uppercase border-b-2 border-gray-300">
+                    <th className="px-2 py-2 text-left font-semibold text-gray-700 border-b border-gray-300">
                       NO
                     </th>
-                    <th className="px-3 py-3 text-left text-xs font-bold text-gray-700 uppercase border-b-2 border-gray-300">
-                      BANYAKNYA
+                    <th className="px-2 py-2 text-left font-semibold text-gray-700 border-b border-gray-300">
+                      Qty
                     </th>
-                    <th className="px-3 py-3 text-left text-xs font-bold text-gray-700 uppercase border-b-2 border-gray-300">
-                      NAMA ITEM
+                    <th className="px-2 py-2 text-left font-semibold text-gray-700 border-b border-gray-300">
+                      Item
                     </th>
-                    <th className="px-3 py-3 text-right text-xs font-bold text-gray-700 uppercase border-b-2 border-gray-300">
-                      HARGA
+                    <th className="px-2 py-2 text-right font-semibold text-gray-700 border-b border-gray-300">
+                      Harga
                     </th>
-                    <th className="px-3 py-3 text-right text-xs font-bold text-gray-700 uppercase border-b-2 border-gray-300">
-                      JUMLAH
+                    <th className="px-2 py-2 text-right font-semibold text-gray-700 border-b border-gray-300">
+                      Jumlah
                     </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">
                   {notaData.items.map((item, index) => (
-                    <tr key={item.id} className="hover:bg-gray-50">
-                      <td className="px-3 py-3 text-sm text-gray-700">
+                    <tr key={item.id}>
+                      <td className="px-2 py-2 text-gray-700">
                         {index + 1}
                       </td>
-                      <td className="px-3 py-3 text-sm text-gray-700">
-                        <div className="font-semibold">{item.banyaknya}</div>
+                      <td className="px-2 py-2 text-gray-700">
+                        <div className="font-medium">{item.banyaknya}</div>
                         {item.keterangan && (
                           <div className="text-xs text-gray-500 italic">
                             {item.keterangan}
                           </div>
                         )}
                       </td>
-                      <td className="px-3 py-3 text-sm text-gray-900 font-medium">
+                      <td className="px-2 py-2 text-gray-900 font-medium">
                         {item.nama_item}
                       </td>
-                      <td className="px-3 py-3 text-sm text-gray-700 text-right">
+                      <td className="px-2 py-2 text-gray-700 text-right">
                         {formatRupiah(item.harga)}
                       </td>
-                      <td className="px-3 py-3 text-sm text-gray-900 font-bold text-right">
+                      <td className="px-2 py-2 text-gray-900 font-semibold text-right">
                         {formatRupiah(item.jumlah)}
                       </td>
                     </tr>
@@ -436,45 +556,42 @@ export default function PreviewNotaPage() {
               </table>
             </div>
 
-            {/* Footer Section */}
-            <div className="flex justify-between items-start mb-8">
-              {/* Left: Info & Signature */}
-              <div className="space-y-6">
-                <div className="text-sm text-gray-600">
-                  <p className="mb-1">
-                    <span className="font-semibold">[ Printed by e-Nota ]</span>
-                  </p>
-                  <p className="font-semibold">Total Qty: <span className="text-gray-900">{calculateTotalQty()}</span></p>
+            {/* Footer Section - Compact */}
+            <div className="flex justify-between items-start mb-6">
+              {/* Left: Info */}
+              <div className="space-y-2">
+                <div className="text-xs text-gray-600">
+                  <p className="font-semibold">Total Qty: <span className="text-gray-900">{calculateTotalQty()} pcs</span></p>
                 </div>
 
                 {notaData.catatan && (
                   <div className="max-w-xs">
-                    <p className="text-sm font-semibold text-gray-700 mb-1">Catatan:</p>
-                    <p className="text-sm text-gray-600 italic">{notaData.catatan}</p>
+                    <p className="text-xs font-semibold text-gray-700 mb-1">Catatan:</p>
+                    <p className="text-xs text-gray-600 italic">{notaData.catatan}</p>
                   </div>
                 )}
               </div>
 
-              {/* Right: Payment Summary */}
-              <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-lg p-6 min-w-[300px]">
-                <div className="space-y-3">
-                  <div className="flex justify-between items-center pb-2 border-b border-blue-200">
-                    <span className="text-sm font-semibold text-gray-700">TOTAL</span>
-                    <span className="text-lg font-bold text-gray-900">
+              {/* Right: Payment Summary - No colored background, compact */}
+              <div className="border border-gray-300 rounded p-3 min-w-[250px]">
+                <div className="space-y-2 text-xs">
+                  <div className="flex justify-between items-center pb-1 border-b border-gray-300">
+                    <span className="font-semibold text-gray-700">Total Tagihan</span>
+                    <span className="font-bold text-gray-900">
                       {formatRupiah(notaData.total_tagihan)}
                     </span>
                   </div>
                   
-                  <div className="flex justify-between items-center pb-2 border-b border-blue-200">
-                    <span className="text-sm font-semibold text-gray-700">BAYAR</span>
-                    <span className="text-lg font-bold text-green-600">
+                  <div className="flex justify-between items-center pb-1 border-b border-gray-300">
+                    <span className="font-semibold text-gray-700">DP/Bayar</span>
+                    <span className="font-bold text-green-600">
                       {formatRupiah(notaData.dp)}
                     </span>
                   </div>
                   
-                  <div className="flex justify-between items-center pt-2">
-                    <span className="text-base font-bold text-gray-900">SISA</span>
-                    <span className="text-xl font-bold text-red-600">
+                  <div className="flex justify-between items-center pt-1">
+                    <span className="font-bold text-gray-900">Sisa</span>
+                    <span className="font-bold text-red-600">
                       {formatRupiah(notaData.sisa)}
                     </span>
                   </div>
@@ -482,22 +599,22 @@ export default function PreviewNotaPage() {
               </div>
             </div>
 
-            {/* Signature Section */}
-            <div className="flex justify-between items-end mt-12 pt-8 border-t-2 border-gray-300">
+            {/* Signature Section - Compact */}
+            <div className="flex justify-between items-end mt-8 pt-4 border-t border-gray-300">
               <div className="text-center">
-                <p className="text-sm font-semibold text-gray-700 mb-16">Tanda Terima</p>
-                <div className="w-48 border-b-2 border-gray-400"></div>
+                <p className="text-xs font-semibold text-gray-700 mb-12">Tanda Terima</p>
+                <div className="w-40 border-b border-gray-400"></div>
               </div>
               
               <div className="text-center">
-                <p className="text-sm font-semibold text-gray-700 mb-16">Cs. Ratih</p>
-                <div className="w-48 border-b-2 border-gray-400"></div>
+                <p className="text-xs font-semibold text-gray-700 mb-12">{notaData.nama_cs || 'Cs. Ratih'}</p>
+                <div className="w-40 border-b border-gray-400"></div>
               </div>
             </div>
 
             {/* Thank You Message */}
-            <div className="text-center mt-8">
-              <p className="text-lg font-bold text-gray-800">*** Terima Kasih ***</p>
+            <div className="text-center mt-6">
+              <p className="text-sm font-bold text-gray-800">*** Terima Kasih ***</p>
             </div>
           </div>
         </div>
