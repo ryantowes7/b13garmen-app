@@ -229,11 +229,45 @@ export default function PreviewNotaPage() {
   }
 
   function calculateTotalQty() {
-    if (!notaData || !notaData.items) return 0;
-    return notaData.items.reduce((sum, item) => {
+    if (!notaData || !notaData.items) return '';
+    
+    // Group by product type (based on keterangan or nama_item)
+    const qtyByType = {};
+    
+    notaData.items.forEach(item => {
       const qty = parseInt(item.banyaknya) || 0;
-      return sum + qty;
-    }, 0);
+      
+      // Determine product type from keterangan or nama_item
+      let productType = 'Item';
+      
+      if (item.keterangan) {
+        if (item.keterangan.toLowerCase().includes('printing') || 
+            item.keterangan.toLowerCase().includes('cetak')) {
+          productType = 'Printing';
+        } else if (item.nama_item.toLowerCase().includes('kaos') || 
+                   item.nama_item.toLowerCase().includes('polo') ||
+                   item.nama_item.toLowerCase().includes('jaket')) {
+          productType = 'Kaos';
+        } else {
+          // Use the keterangan as product type
+          productType = item.keterangan.split(' - ')[0] || 'Item';
+        }
+      } else {
+        // Fallback: use nama_item as product type
+        const nameParts = item.nama_item.split(' ');
+        productType = nameParts[0] || 'Item';
+      }
+      
+      if (!qtyByType[productType]) {
+        qtyByType[productType] = 0;
+      }
+      qtyByType[productType] += qty;
+    });
+    
+    // Format as string: "Kaos = 40, Printing = 5"
+    return Object.entries(qtyByType)
+      .map(([type, qty]) => `${type} = ${qty}`)
+      .join(', ');
   }
 
   function formatTanggalIndonesia(tanggal) {
@@ -457,34 +491,44 @@ export default function PreviewNotaPage() {
           <div className="p-8 sm:p-12">
             {/* Header */}
             <div className="mb-4">
-              {/* Company Info - Compact */}
-              <div className="flex items-center justify-center mb-2">
-                <div className="text-center">
-                  <h1 className="text-base font-bold text-gray-900">
-                    B13 Factory Garment & Adv
+              {/* Company Info - Left Aligned with Logo */}
+              <div className="flex items-start gap-4 mb-3">
+                {/* Logo */}
+                <div className="flex-shrink-0">
+                  <img 
+                    src="/LOGO-NOTA.png" 
+                    alt="B13 Garment & Adv Logo" 
+                    className="w-16 h-16 object-contain"
+                  />
+                </div>
+                
+                {/* Company Details */}
+                <div className="flex-1">
+                  <h1 className="text-lg font-bold text-black mb-1">
+                    B13 Garment & Advertising
                   </h1>
-                  <p className="text-xs text-gray-600 leading-tight">
-                    Jl. Arowana Perum Kebonagung Indah Blok. 13 No. 16, Kel. Kebonagung, Kec. Kaliwates - Jember
+                  <p className="text-xs text-black leading-relaxed">
+                    Jl. Arowana, Prm. Kebonagung Indah Blk.13 No.16, Kec.Kaliwates - Jember
                   </p>
-                  <p className="text-xs text-gray-600 font-medium">
-                    ☎ 081234036663
+                  <p className="text-xs text-black mt-1">
+                    No. Hp : 081234036663 / Email : b13factory@gmail.com
                   </p>
                 </div>
               </div>
               
               {/* Divider Line */}
-              <div className="border-t-2 border-gray-300 mt-2 mb-2"></div>
+              <div className="border-t-2 border-black mt-2 mb-2"></div>
             </div>
 
             {/* Order Number & Date - Compact */}
             <div className="flex justify-between items-start mb-3">
               <div>
-                <p className="text-xs font-semibold text-gray-900">
-                  No. Order: <span className="text-blue-600">{notaData.nota_number}</span>
+                <p className="text-xs font-semibold text-black">
+                  No. Order: <span className="text-black">{notaData.nota_number}</span>
                 </p>
               </div>
               <div className="text-right">
-                <p className="text-xs text-gray-600">
+                <p className="text-xs text-black">
                   Tanggal: <span className="font-semibold">{formatTanggalIndonesia(notaData.tanggal_nota)}</span>
                 </p>
               </div>
@@ -492,16 +536,14 @@ export default function PreviewNotaPage() {
 
             {/* Customer Info - Compact */}
             <div className="mb-3 bg-gray-50 p-2 rounded">
-              <div className="grid grid-cols-2 gap-2 text-xs">
-                <div>
-                  <span className="font-semibold">Konsumen:</span> {notaData.nama}
-                </div>
-                <div>
-                  <span className="font-semibold">No. HP:</span> {notaData.nohp}
-                </div>
-                <div className="col-span-2">
-                  <span className="font-semibold">Alamat:</span> {notaData.alamat}
-                </div>
+              <div className="text-xs">
+                <p className="mb-1">
+                  <span className="font-semibold">Kepada Yth.</span>
+                </p>
+                <p className="font-semibold text-black mb-1">{notaData.nama}</p>
+                <p className="text-black">
+                  {notaData.alamat ? notaData.alamat.split(',').pop().trim() : '-'}
+                </p>
               </div>
             </div>
 
@@ -560,38 +602,38 @@ export default function PreviewNotaPage() {
             <div className="flex justify-between items-start mb-6">
               {/* Left: Info */}
               <div className="space-y-2">
-                <div className="text-xs text-gray-600">
-                  <p className="font-semibold">Total Qty: <span className="text-gray-900">{calculateTotalQty()} pcs</span></p>
+                <div className="text-xs text-black">
+                  <p className="font-semibold">Total Qty: <span className="text-black">{calculateTotalQty()}</span></p>
                 </div>
 
                 {notaData.catatan && (
                   <div className="max-w-xs">
-                    <p className="text-xs font-semibold text-gray-700 mb-1">Catatan:</p>
-                    <p className="text-xs text-gray-600 italic">{notaData.catatan}</p>
+                    <p className="text-xs font-semibold text-black mb-1">Catatan:</p>
+                    <p className="text-xs text-black italic">{notaData.catatan}</p>
                   </div>
                 )}
               </div>
 
               {/* Right: Payment Summary - No colored background, compact */}
-              <div className="border border-gray-300 rounded p-3 min-w-[250px]">
+              <div className="border border-black rounded p-3 min-w-[250px]">
                 <div className="space-y-2 text-xs">
-                  <div className="flex justify-between items-center pb-1 border-b border-gray-300">
-                    <span className="font-semibold text-gray-700">Total Tagihan</span>
-                    <span className="font-bold text-gray-900">
+                  <div className="flex justify-between items-center pb-1 border-b border-black">
+                    <span className="font-semibold text-black">Total Tagihan</span>
+                    <span className="font-bold text-black">
                       {formatRupiah(notaData.total_tagihan)}
                     </span>
                   </div>
                   
-                  <div className="flex justify-between items-center pb-1 border-b border-gray-300">
-                    <span className="font-semibold text-gray-700">DP/Bayar</span>
-                    <span className="font-bold text-green-600">
+                  <div className="flex justify-between items-center pb-1 border-b border-black">
+                    <span className="font-semibold text-black">DP/Bayar</span>
+                    <span className="font-bold text-black">
                       {formatRupiah(notaData.dp)}
                     </span>
                   </div>
                   
                   <div className="flex justify-between items-center pt-1">
-                    <span className="font-bold text-gray-900">Sisa</span>
-                    <span className="font-bold text-red-600">
+                    <span className="font-bold text-black">Sisa</span>
+                    <span className="font-bold text-black">
                       {formatRupiah(notaData.sisa)}
                     </span>
                   </div>
